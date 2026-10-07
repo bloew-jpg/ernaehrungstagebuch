@@ -675,12 +675,18 @@ class _TagesSeiteState extends State<TagesSeite> {
         }
 
         for (final m in essen) {
-          final motivName = _motivNamen[m.essmotiv];
+          final essmotive = m.essmotive
+              .map(
+                (motiv) =>
+                    '$motiv'
+                    '${_motivNamen[motiv] != null ? ' - ${_motivNamen[motiv]}' : ''}',
+              )
+              .join(', ');
           final vorher = [
             if (m.hunger != null)
               'Hunger ${m.hunger! > 0 ? '+' : ''}${m.hunger}',
-            if (m.essmotiv != null)
-              'Motiv ${m.essmotiv}${motivName != null ? ' - $motivName' : ''}',
+            if (essmotive.isNotEmpty)
+              '${m.essmotive.length == 1 ? 'Motiv' : 'Motive'}: $essmotive',
           ];
           final nachher = [
             if (m.saettigung != null)
@@ -833,7 +839,7 @@ class _TagesSeiteState extends State<TagesSeite> {
 
   Future<void> _essenEintragen([MahlzeitEintrag? bestehend]) async {
     int? ausgewaehlterHunger = bestehend?.hunger;
-    String? ausgewaehltesEssmotiv = bestehend?.essmotiv;
+    final ausgewaehlteEssmotive = {...?bestehend?.essmotive};
     int? ausgewaehlteSaettigung = bestehend?.saettigung;
     int? ausgewaehlteEnergie = bestehend?.energie;
     String? ausgewaehlteStimmung = bestehend?.stimmung;
@@ -993,11 +999,13 @@ class _TagesSeiteState extends State<TagesSeite> {
                         ])
                           ChoiceChip(
                             label: Text('${motiv.$1} – ${motiv.$2}'),
-                            selected: ausgewaehltesEssmotiv == motiv.$1,
+                            selected: ausgewaehlteEssmotive.contains(motiv.$1),
                             showCheckmark: true,
                             onSelected: (_) {
                               setModalState(() {
-                                ausgewaehltesEssmotiv = motiv.$1;
+                                if (!ausgewaehlteEssmotive.add(motiv.$1)) {
+                                  ausgewaehlteEssmotive.remove(motiv.$1);
+                                }
                               });
                             },
                           ),
@@ -1146,7 +1154,8 @@ class _TagesSeiteState extends State<TagesSeite> {
                                               ausgewaehlteUhrzeit.hour * 60 +
                                               ausgewaehlteUhrzeit.minute,
                                           hunger: ausgewaehlterHunger,
-                                          essmotiv: ausgewaehltesEssmotiv,
+                                          essmotive: ausgewaehlteEssmotive
+                                              .toList(),
                                           text: essenController.text.trim(),
                                           saettigung: ausgewaehlteSaettigung,
                                           energie: ausgewaehlteEnergie,
@@ -1281,7 +1290,7 @@ class _TagesSeiteState extends State<TagesSeite> {
     return [
       '$stunde:$minute Uhr',
       if (m.hunger != null) 'Hunger ${m.hunger}',
-      if (m.essmotiv != null) 'Motiv ${m.essmotiv}',
+      if (m.essmotive.isNotEmpty) 'Motiv ${m.essmotive.join(', ')}',
     ].join(' · ');
   }
 
@@ -1749,7 +1758,7 @@ class TrinkEintrag {
 class MahlzeitEintrag {
   final int minutenSeitMitternacht;
   final int? hunger;
-  final String? essmotiv;
+  final List<String> essmotive;
   final String text;
   final int? saettigung;
   final int? energie;
@@ -1758,7 +1767,7 @@ class MahlzeitEintrag {
   MahlzeitEintrag({
     required this.minutenSeitMitternacht,
     required this.hunger,
-    required this.essmotiv,
+    required this.essmotive,
     required this.text,
     this.saettigung,
     this.energie,
@@ -1766,10 +1775,17 @@ class MahlzeitEintrag {
   });
 
   factory MahlzeitEintrag.fromJson(Map<String, dynamic> json) {
+    final essmotiveJson = json['essmotive'];
+
     return MahlzeitEintrag(
       minutenSeitMitternacht: json['minuten'] as int,
       hunger: json['hunger'] as int?,
-      essmotiv: json['essmotiv'] as String?,
+      essmotive: essmotiveJson is List
+          ? List<String>.from(essmotiveJson)
+          : switch (json['essmotiv']) {
+              final String essmotiv => [essmotiv],
+              _ => [],
+            },
       text: json['text'] as String? ?? '',
       saettigung: json['saettigung'] as int?,
       energie: json['energie'] as int?,
@@ -1780,7 +1796,7 @@ class MahlzeitEintrag {
   Map<String, dynamic> toJson() => {
     'minuten': minutenSeitMitternacht,
     'hunger': hunger,
-    'essmotiv': essmotiv,
+    'essmotive': essmotive,
     'text': text,
     'saettigung': saettigung,
     'energie': energie,
